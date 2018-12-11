@@ -138,17 +138,19 @@ update seconds game = do
     bl1 <- atomically $ readTVar $ blocks game
     bl2 <- atomically $ readTVar $ blocks2 game
     if isPaused game then return game else
-        if (not $ hasBlocks bl1) || (not $ hasBlocks bl2) then return $ game { gameStat = 1 }  else
-            if dropped then return $ game { gameStat = (-1) } else do
-                x1 <- updateBall seconds game
-                x2 <- updatePlayer seconds x1
-                x3 <- updateWall seconds x2
-                x4 <- updateBlocks seconds x3
-                x5 <- updatePaddle seconds x4
-                -- x6 <- createPowerUp x5
-                return x5
+        if (not $ hasBlocks bl1) then return $ game { gameStat = 1} else
+            if (not $ hasBlocks bl2) then return $ game { gameStat = 2} else
+                if dropped 1 then return $ game { gameStat = (-1) } else
+                    if dropped 2 then return $ game { gameStat = (-2) } else do        
+                        x1 <- updateBall seconds game
+                        x2 <- updatePlayer seconds x1
+                        x3 <- updateWall seconds x2
+                        x4 <- updateBlocks seconds x3
+                        x5 <- updatePaddle seconds x4
+                        return x5
     where
-        dropped    = y < (-halfHeight) - 5 || y' < (-halfHeight) - 5
+        dropped 1  = y < (-halfHeight) - 5
+        dropped 2  = y' < (-halfHeight) - 5
         y          = snd $ ballLoc game
         y'         = snd $ ballLoc2 game
 
