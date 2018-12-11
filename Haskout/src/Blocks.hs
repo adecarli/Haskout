@@ -51,8 +51,7 @@ drawBlocks bs = pictures $ [drawBlock x | x <- bs]
 
 -- | Gera os blocos.
 genBlock :: Int -> Position -> BlockInfo
-genBlock n (px, py) | n == 25 = Block {blockPos = pos, typePower = SmallBar}
-                    | otherwise = Block { blockPos = pos, typePower = None }
+genBlock n (px, py) = Block { blockPos = pos, typePower = None }
     where
         pos = (bx, by)
         bx = px + bHalfWidth + 6 + fromIntegral x * (fst blockSize + 1)

@@ -26,6 +26,7 @@ data GameStatus = Game
     , blocks    :: IO (TVar Blocks)   -- ^ Lista de blocos na tela;
     , blocks2   :: IO (TVar Blocks)
     , gameStat  :: Int      -- ^ Status do jogo: 0 - em jogo, 1 = vitória, -1 = derrota.
+    
     }
 
 -- | Estado inicial do jogo.
@@ -107,8 +108,6 @@ updateBlocks seconds game = do
         let ballVel2' = blockCollision seconds bv2 bp2 bl2
         writeTVar b1 (removeBlocks seconds bl1 bp bv)
         writeTVar b2 (removeBlocks seconds bl2 bp2 bv2)
-        bl1' <- readTVar b1
-        bl2' <- readTVar b2
         return (ballVel', ballVel2')
     return $ game { ballVel = v1, blocks = return b1, ballVel2 = v2, blocks2 = return b2 }
         where
@@ -117,6 +116,24 @@ updateBlocks seconds game = do
             bp = ballLoc game
             bv2 = ballVel2 game
             bp2 = ballLoc2 game
+
+-- | 
+createPowerUp :: GameStatus -> IO (GameStatus)
+createPowerUp game = do
+    b1 <- blocks game
+    b2 <- blocks2 game
+    atomically $ do
+        bl1 <- readTVar b1
+        bl2 <- readTVar b2
+        if length bl1 == 0|| length bl2 == 0 then return () else do
+            let bl1' = head bl1
+            let bl2' = head bl2
+            writeTVar b1 ((bl1' {typePower = BigBar}) : tail bl1)
+            writeTVar b2 ((bl2' {typePower = BigBar}) : tail bl2)
+    return $ game { blocks = return b1, blocks2 = return b2 }
+        
+
+    
 
 -- | Atualiza o estado do jogo.
 update :: Float -> GameStatus -> IO (GameStatus)
@@ -135,10 +152,12 @@ update seconds game = do
                 x3 <- updateWall seconds x2
                 x4 <- updateBlocks seconds x3
                 x5 <- updatePaddle seconds x4
-                return x5
+                x6 <- createPowerUp x5
+                return x6
     where
-        dropped    = y < (-halfHeight) - 5
+        dropped    = y < (-halfHeight) - 5 || y' < (-halfHeight) - 5
         y          = snd $ ballLoc game
+        y'         = snd $ ballLoc2 game
 
 -- | Responde aos eventos de teclas.
 handleKeys :: Event -> GameStatus -> IO (GameStatus)
