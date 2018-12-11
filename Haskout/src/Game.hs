@@ -153,8 +153,8 @@ update seconds game = do
                 x3 <- updateWall seconds x2
                 x4 <- updateBlocks seconds x3
                 x5 <- updatePaddle seconds x4
-                x6 <- createPowerUp x5
-                return x6
+                -- x6 <- createPowerUp x5
+                return x5
     where
         dropped    = y < (-halfHeight) - 5 || y' < (-halfHeight) - 5
         y          = snd $ ballLoc game
