@@ -71,10 +71,14 @@ renderTxt col msg = translate (-100) 180 $ scale 0.2 0.2 $ color col $ Text msg
 -- | Mensagem atual a ser mostrada.
 curMsg :: Int -> Bool -> Picture
 curMsg   0  paused = pauseMsg paused
-curMsg (-1) paused = lostMsg
-curMsg   _  paused = winMsg
+curMsg (-1) paused = lostMsg 1
+curMsg (-2) paused = lostMsg 2
+curMsg   1  paused = winMsg 1
+curMsg   2  paused = winMsg 2
 
-winMsg         = renderTxt green "You won!"
-lostMsg        = renderTxt red   "Git gud!"
+winMsg    1    = renderTxt green "Player 1 won!"
+winMsg    2    = renderTxt green "Player 2 won!"
+lostMsg   1    = renderTxt red   "Player 1 lost!"
+lostMsg   2    = renderTxt red   "Player 2 lost!"
 pauseMsg True  = renderTxt blue  "Press p to play!"
 pauseMsg False = renderTxt blue  ""

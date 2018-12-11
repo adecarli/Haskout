@@ -23,7 +23,7 @@ data PowerUp = None | BigBar | SmallBar | FastBall | SlowBall deriving Eq
 
 -- | Informação dos blocos.
 data BlockInfo = Block
-    { blockPos :: Position  -- ^ (x, y) coordenada do bloco.
+    { blockPos :: Position      -- ^ (x, y) coordenada do bloco.
     -- , blockCol :: Color     -- ^ cor do bloco.
     , typePower :: PowerUp      -- ^ 
     }
@@ -51,8 +51,7 @@ drawBlocks bs = pictures $ [drawBlock x | x <- bs]
 
 -- | Gera os blocos.
 genBlock :: Int -> Position -> BlockInfo
-genBlock n (px, py) | n == 25 = Block {blockPos = pos, typePower = BigBar}
-                    | otherwise = Block { blockPos = pos, typePower = None }
+genBlock n (px, py) = Block { blockPos = pos, typePower = None }
     where
         pos = (bx, by)
         bx = px + bHalfWidth + 6 + fromIntegral x * (fst blockSize + 1)

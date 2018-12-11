@@ -69,13 +69,13 @@ paddleBounce seconds bp@(x,y) bv@(vx, vy) pp pv =
 
 
 -- | Altera a velocidade da bola ao colidir com um dos blocos.
-blockCollision :: Float -> Position -> Position -> Blocks -> Position
-blockCollision seconds v@(vx,vy) bp@(xball, yball) [] = v
+blockCollision :: Float -> Position -> Position -> Blocks -> (Position, PowerUp)
+blockCollision seconds v@(vx,vy) bp@(xball, yball) [] = (v, None)
 blockCollision seconds v@(vx,vy) bp@(xball, yball) (b:bs)
-    | hitCornerH xb && overlapY yb = (-vx,  vy)
-    | hitCornerV yb && overlapX xb = ( vx, -vy)
-    | hitSide    xb && overlapY yb = (-vx,  vy)
-    | hitTop     yb && overlapX xb = ( vx, -vy)
+    | hitCornerH xb && overlapY yb = ((-vx,  vy), typePower b)
+    | hitCornerV yb && overlapX xb = (( vx, -vy), typePower b)
+    | hitSide    xb && overlapY yb = ((-vx,  vy), typePower b)
+    | hitTop     yb && overlapX xb = (( vx, -vy), typePower b)
     | otherwise                    = blockCollision seconds v bp bs
     where
         (xb, yb) = blockPos b
