@@ -101,14 +101,17 @@ updateBlocks :: Float -> GameStatus -> IO (GameStatus)
 updateBlocks seconds game = do
     b1 <- blocks game
     b2 <- blocks2 game
-    (v1, v2) <- atomically $ do
+    ((v1x, v1y), (v2x, v2y), pow1, pow2) <- atomically $ do
         bl1 <- readTVar b1
         bl2 <- readTVar b2
-        let ballVel' = blockCollision seconds bv bp bl1
-        let ballVel2' = blockCollision seconds bv2 bp2 bl2
+        let (ballVel', p1) = blockCollision seconds bv bp bl1
+        let (ballVel2', p2) = blockCollision seconds bv2 bp2 bl2
         writeTVar b1 (removeBlocks seconds bl1 bp bv)
         writeTVar b2 (removeBlocks seconds bl2 bp2 bv2)
-        return (ballVel', ballVel2')
+        return (ballVel', ballVel2', p1, p2)
+    let v2 = if pow1 == FastBall then (v2x*1.1, v2y*1.1) else (v2x, v2y)
+    let v1 = if pow2 == FastBall then (v1x*1.1, v1y*1.1) else (v1x, v1y)
+
     return $ game { ballVel = v1, blocks = return b1, ballVel2 = v2, blocks2 = return b2 }
         where
         -- atualiza a velocidade da bola ao atingir blocos
@@ -128,8 +131,8 @@ createPowerUp game = do
         if length bl1 == 0|| length bl2 == 0 then return () else do
             let bl1' = head bl1
             let bl2' = head bl2
-            writeTVar b1 ((bl1' {typePower = BigBar}) : tail bl1)
-            writeTVar b2 ((bl2' {typePower = BigBar}) : tail bl2)
+            writeTVar b1 ((bl1' {typePower = FastBall}) : tail bl1)
+            writeTVar b2 ((bl2' {typePower = FastBall}) : tail bl2)
     return $ game { blocks = return b1, blocks2 = return b2 }
         
 
@@ -142,8 +145,6 @@ update seconds game = do
     b2 <- blocks2 game
     bl1 <- atomically $ readTVar b1
     bl2 <- atomically $ readTVar b2
-    
-
     if isPaused game then return game else
         if (not $ hasBlocks bl1) || (not $ hasBlocks bl2) then return $ game { gameStat = 1 }  else
             if dropped then return $ game { gameStat = (-1) } else do
