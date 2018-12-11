@@ -14,4 +14,4 @@ fps = 60
 
 -- | Criação da janela.
 main :: IO ()
-main = play window background fps initialState render handleKeys update
+main = playIO window background fps initialState render handleKeys update

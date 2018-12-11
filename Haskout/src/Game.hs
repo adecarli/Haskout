@@ -2,6 +2,7 @@ module Game where
 
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
+import Control.Concurrent.STM
 import Window
 import Ball
 import Blocks
@@ -22,8 +23,8 @@ data GameStatus = Game
     , playerVel2 :: Float
     , playerAcc :: Float    -- ^ Aceleração do jogador.
     , isPaused  :: Bool     -- ^ Indicador do status de pausa.
-    , blocks    :: Blocks   -- ^ Lista de blocos na tela;
-    , blocks2   :: Blocks
+    , blocks    :: IO (TVar Blocks)   -- ^ Lista de blocos na tela;
+    , blocks2   :: IO (TVar Blocks)
     , gameStat  :: Int      -- ^ Status do jogo: 0 - em jogo, 1 = vitória, -1 = derrota.
     }
 
@@ -40,47 +41,51 @@ initialState = Game
     , playerVel2 = 0
     , playerAcc = 200
     , isPaused  = True
-    , blocks    = map genBlock1 [0..49]
-    , blocks2   = map genBlock2 [0..49]
+    , blocks    = atomically $ newTVar (map genBlock1 [0..49])
+    , blocks2   = atomically $ newTVar (map genBlock2 [0..49])
     , gameStat  = 0
     }
 
 -- | Converte o estado do jogo em uma imagem de tela.
-render :: GameStatus -> Picture
-render game = pictures [ballPics, walls, playerPics, blocksPic, msgPic]
+render :: GameStatus -> IO (Picture)
+render game = do
+    b1 <- blocks game
+    b2 <- blocks2 game
+    bl1 <- atomically $ readTVar b1
+    bl2 <- atomically $ readTVar b2
+    return (pictures [ballPics, walls, playerPics, pictures[drawBlocks bl1, drawBlocks bl2], msgPic])
     where
         ballPics   = pictures [ ball $ ballLoc game, ball $ ballLoc2 game]
         playerPics = pictures [ mkPlayer $ playerLoc game, mkPlayer $ playerLoc2 game ]
-        blocksPic = pictures  [ drawBlocks $ blocks game, drawBlocks $ blocks2 game ]
-        msgPic    = curMsg (gameStat game) (isPaused game) 
+        msgPic     = curMsg (gameStat game) (isPaused game) 
 
 -- | Atualiza o estado da bola.
-updateBall :: Float -> GameStatus -> GameStatus
-updateBall seconds game = game { ballLoc = moveBall seconds pos v, ballLoc2 = moveBall seconds pos2 v2 }
+updateBall :: Float -> GameStatus -> IO (GameStatus)
+updateBall seconds game = return $ game { ballLoc = moveBall seconds pos v, ballLoc2 = moveBall seconds pos2 v2 }
     where pos = ballLoc game
           v   = ballVel game
           pos2 = ballLoc2 game
           v2   = ballVel2 game
 
 -- | Atualiza o estado do jogador.
-updatePlayer :: Float -> GameStatus -> GameStatus
-updatePlayer seconds game = game { playerLoc = movePlayer seconds x v, playerLoc2 = movePlayer seconds x2 v2 }
+updatePlayer :: Float -> GameStatus -> IO (GameStatus)
+updatePlayer seconds game = return $ game { playerLoc = movePlayer seconds x v, playerLoc2 = movePlayer seconds x2 v2 }
     where x = playerLoc game
           v = playerVel game
           x2 = playerLoc2 game
           v2 = playerVel2 game
 
 -- | Atualiza posição da bola de acordo com colisões nas bordas.
-updateWall :: Float -> GameStatus -> GameStatus
-updateWall seconds game = game { ballVel = wallBounce seconds pos v, ballVel2 = wallBounce seconds pos2 v2 }
+updateWall :: Float -> GameStatus -> IO (GameStatus)
+updateWall seconds game = return $ game { ballVel = wallBounce seconds pos v, ballVel2 = wallBounce seconds pos2 v2 }
     where pos = ballLoc game
           v   = ballVel game
           pos2 = ballLoc2 game
           v2 = ballVel2 game
 
 -- | Atualiza posição da bola de acordo com colisões com o jogador.
-updatePaddle :: Float -> GameStatus -> GameStatus
-updatePaddle seconds game = game { ballVel = paddleBounce seconds bp bv pp pv, ballVel2 = paddleBounce seconds bp2 bv2 pp2 pv2 }
+updatePaddle :: Float -> GameStatus -> IO (GameStatus)
+updatePaddle seconds game = return $ game { ballVel = paddleBounce seconds bp bv pp pv, ballVel2 = paddleBounce seconds bp2 bv2 pp2 pv2 }
     where bp = ballLoc   game
           bv = ballVel   game
           pp = playerLoc game
@@ -91,57 +96,74 @@ updatePaddle seconds game = game { ballVel = paddleBounce seconds bp bv pp pv, b
           pv2 = playerVel2 game
 
 -- | Atualiza a posição da bola de acordo com colisões nos blocos e remove blocos.
-updateBlocks :: Float -> GameStatus -> GameStatus
-updateBlocks seconds game = game { ballVel = ballVel', blocks = blocks', ballVel2 = ballVel2', blocks2 = blocks2' }
-    where
+updateBlocks :: Float -> GameStatus -> IO (GameStatus)
+updateBlocks seconds game = do
+    b1 <- blocks game
+    b2 <- blocks2 game
+    (v1, v2) <- atomically $ do
+        bl1 <- readTVar b1
+        bl2 <- readTVar b2
+        let ballVel' = blockCollision seconds bv bp bl1
+        let ballVel2' = blockCollision seconds bv2 bp2 bl2
+        writeTVar b1 (removeBlocks seconds bl1 bp bv)
+        writeTVar b2 (removeBlocks seconds bl2 bp2 bv2)
+        bl1' <- readTVar b1
+        bl2' <- readTVar b2
+        return (ballVel', ballVel2')
+    return $ game { ballVel = v1, blocks = return b1, ballVel2 = v2, blocks2 = return b2 }
+        where
         -- atualiza a velocidade da bola ao atingir blocos
-        ballVel' = blockCollision seconds bv bp bs
-        blocks'  = removeBlocks seconds bs bp bv
-        bv = ballVel game
-        bp = ballLoc game
-        bs = blocks  game
-        ballVel2' = blockCollision seconds bv2 bp2 bs2
-        blocks2'  = removeBlocks seconds bs2 bp2 bv2
-        bv2 = ballVel2 game
-        bp2 = ballLoc2 game
-        bs2 = blocks2  game
+            bv = ballVel game
+            bp = ballLoc game
+            bv2 = ballVel2 game
+            bp2 = ballLoc2 game
 
 -- | Atualiza o estado do jogo.
-update :: Float -> GameStatus -> GameStatus
-update seconds game | isPaused game = game
-                    | (not (hasBlocks (blocks game))) || (not (hasBlocks (blocks2 game))) = game { gameStat = 1 } 
-                    | dropped = game { gameStat = (-1) }
-                    | otherwise = collisions $ moves game
-                    where
-                        dropped    = y < (-halfHeight) - 5
-                        y          = snd $ ballLoc game
-                        collisions = updatePaddle seconds . updateBlocks seconds . updateWall seconds
-                        moves      = updatePlayer seconds . updateBall seconds
+update :: Float -> GameStatus -> IO (GameStatus)
+update seconds game = do
+    b1 <- blocks game
+    b2 <- blocks2 game
+    bl1 <- atomically $ readTVar b1
+    bl2 <- atomically $ readTVar b2
+    
+
+    if isPaused game then return game else
+        if (not $ hasBlocks bl1) || (not $ hasBlocks bl2) then return $ game { gameStat = 1 }  else
+            if dropped then return $ game { gameStat = (-1) } else do
+                x1 <- updateBall seconds game
+                x2 <- updatePlayer seconds x1
+                x3 <- updateWall seconds x2
+                x4 <- updateBlocks seconds x3
+                x5 <- updatePaddle seconds x4
+                return x5
+    where
+        dropped    = y < (-halfHeight) - 5
+        y          = snd $ ballLoc game
 
 -- | Responde aos eventos de teclas.
-handleKeys :: Event -> GameStatus -> GameStatus
+handleKeys :: Event -> GameStatus -> IO (GameStatus)
 -- Tecla 'r' retorna ao estado inicial.
-handleKeys (EventKey (Char 'r') Down _ _) game = initialState
+handleKeys (EventKey (Char 'r') Down _ _) game = return initialState
 -- Tecla 'p' pausa e despausa o jogo.
-handleKeys (EventKey (Char 'p') Down _ _) game = invPause game
+handleKeys (EventKey (Char 'p') Down _ _) game = return $ invPause game
 -- Tecla 'a' move para a esquerda.
-handleKeys (EventKey (Char 'a') Down _ _) game = decVel game 1
+handleKeys (EventKey (Char 'a') Down _ _) game = return $ decVel game 1
 -- Soltar a tecla 'a' para o jogador.
-handleKeys (EventKey (Char 'a') Up _ _) game = incVel game 1
+handleKeys (EventKey (Char 'a') Up _ _) game = return $ incVel game 1
 -- Tecla 'd' move o jogador para a direita.
-handleKeys (EventKey (Char 'd') Down _ _) game = incVel game 1
+handleKeys (EventKey (Char 'd') Down _ _) game = return $ incVel game 1
 -- Soltar a tecla 'd' para o jogador.
-handleKeys (EventKey (Char 'd') Up _ _) game = decVel game 1
+handleKeys (EventKey (Char 'd') Up _ _) game = return $ decVel game 1
 -- Tecla '<-' move o jogador 2 para esquerda.
-handleKeys (EventKey (SpecialKey KeyLeft) Down _ _) game = decVel game 2
+handleKeys (EventKey (SpecialKey KeyLeft) Down _ _) game = return $ decVel game 2
 -- Soltar '<-' para o jogador 2.
-handleKeys (EventKey (SpecialKey KeyLeft) Up _ _) game = incVel game 2
+handleKeys (EventKey (SpecialKey KeyLeft) Up _ _) game = return $ incVel game 2
 -- Tecla '->' move o jogador 2 para direita.
-handleKeys (EventKey (SpecialKey KeyRight) Down _ _) game = incVel game 2
+handleKeys (EventKey (SpecialKey KeyRight) Down _ _) game = return $ incVel game 2
 -- Soltar '->' para o jogador 2.
-handleKeys (EventKey (SpecialKey KeyRight) Up _ _) game = decVel game 2
+handleKeys (EventKey (SpecialKey KeyRight) Up _ _) game = return $ decVel game 2
 -- Qualquer outra tecla é ignorada.
-handleKeys _ game = game
+handleKeys _ game = return $ game
 
 -- | Incrementa a velocidade do jogador.
 incVel :: GameStatus -> Int -> GameStatus
