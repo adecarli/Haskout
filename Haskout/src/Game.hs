@@ -23,15 +23,15 @@ data GameStatus = Game
     , playerVel2 :: Float
     , playerAcc :: Float    -- ^ Aceleração do jogador.
     , isPaused  :: Bool     -- ^ Indicador do status de pausa.
-    , blocks    :: IO (TVar Blocks)   -- ^ Lista de blocos na tela;
-    , blocks2   :: IO (TVar Blocks)
+    , blocks    :: TVar Blocks   -- ^ Lista de blocos na tela;
+    , blocks2   :: TVar Blocks
     , gameStat  :: Int      -- ^ Status do jogo: 0 - em jogo, 1 = vitória, -1 = derrota.
     
     }
 
 -- | Estado inicial do jogo.
-initialState :: GameStatus
-initialState = Game
+initialState :: TVar Blocks -> TVar Blocks -> GameStatus
+initialState b1 b2 = Game
     { ballLoc   = (-halfWidth / 2, -100)
     , ballVel   = (50, -200)
     , ballLoc2  = (halfWidth /2, -100)
@@ -42,18 +42,16 @@ initialState = Game
     , playerVel2 = 0
     , playerAcc = 200
     , isPaused  = True
-    , blocks    = atomically $ newTVar (map genBlock1 [0..49])
-    , blocks2   = atomically $ newTVar (map genBlock2 [0..49])
+    , blocks    = b1
+    , blocks2   = b2
     , gameStat  = 0
     }
 
 -- | Converte o estado do jogo em uma imagem de tela.
 render :: GameStatus -> IO (Picture)
 render game = do
-    b1 <- blocks game
-    b2 <- blocks2 game
-    bl1 <- atomically $ readTVar b1
-    bl2 <- atomically $ readTVar b2
+    bl1 <- atomically $ readTVar $ blocks game
+    bl2 <- atomically $ readTVar $ blocks2 game
     return (pictures [ballPics, walls, playerPics, pictures[drawBlocks bl1, drawBlocks bl2], msgPic])
     where
         ballPics   = pictures [ ball $ ballLoc game, ball $ ballLoc2 game]
@@ -99,20 +97,18 @@ updatePaddle seconds game = return $ game { ballVel = paddleBounce seconds bp bv
 -- | Atualiza a posição da bola de acordo com colisões nos blocos e remove blocos.
 updateBlocks :: Float -> GameStatus -> IO (GameStatus)
 updateBlocks seconds game = do
-    b1 <- blocks game
-    b2 <- blocks2 game
     ((v1x, v1y), (v2x, v2y), pow1, pow2) <- atomically $ do
-        bl1 <- readTVar b1
-        bl2 <- readTVar b2
+        bl1 <- readTVar $ blocks game
+        bl2 <- readTVar $ blocks2 game
         let (ballVel', p1) = blockCollision seconds bv bp bl1
         let (ballVel2', p2) = blockCollision seconds bv2 bp2 bl2
-        writeTVar b1 (removeBlocks seconds bl1 bp bv)
-        writeTVar b2 (removeBlocks seconds bl2 bp2 bv2)
+        writeTVar (blocks game) (removeBlocks seconds bl1 bp bv)
+        writeTVar (blocks2 game) (removeBlocks seconds bl2 bp2 bv2)
         return (ballVel', ballVel2', p1, p2)
     let v2 = if pow1 == FastBall then (v2x*1.1, v2y*1.1) else (v2x, v2y)
     let v1 = if pow2 == FastBall then (v1x*1.1, v1y*1.1) else (v1x, v1y)
 
-    return $ game { ballVel = v1, blocks = return b1, ballVel2 = v2, blocks2 = return b2 }
+    return $ game { ballVel = v1, ballVel2 = v2}
         where
         -- atualiza a velocidade da bola ao atingir blocos
             bv = ballVel game
@@ -123,17 +119,15 @@ updateBlocks seconds game = do
 -- | 
 createPowerUp :: GameStatus -> IO (GameStatus)
 createPowerUp game = do
-    b1 <- blocks game
-    b2 <- blocks2 game
     atomically $ do
-        bl1 <- readTVar b1
-        bl2 <- readTVar b2
+        bl1 <- readTVar $ blocks game
+        bl2 <- readTVar $ blocks2 game
         if length bl1 == 0|| length bl2 == 0 then return () else do
             let bl1' = head bl1
             let bl2' = head bl2
-            writeTVar b1 ((bl1' {typePower = FastBall}) : tail bl1)
-            writeTVar b2 ((bl2' {typePower = FastBall}) : tail bl2)
-    return $ game { blocks = return b1, blocks2 = return b2 }
+            writeTVar (blocks game) ((bl1' {typePower = FastBall}) : tail bl1)
+            writeTVar (blocks2 game) ((bl2' {typePower = FastBall}) : tail bl2)
+    return $ game 
         
 
     
@@ -141,10 +135,8 @@ createPowerUp game = do
 -- | Atualiza o estado do jogo.
 update :: Float -> GameStatus -> IO (GameStatus)
 update seconds game = do
-    b1 <- blocks game
-    b2 <- blocks2 game
-    bl1 <- atomically $ readTVar b1
-    bl2 <- atomically $ readTVar b2
+    bl1 <- atomically $ readTVar $ blocks game
+    bl2 <- atomically $ readTVar $ blocks2 game
     if isPaused game then return game else
         if (not $ hasBlocks bl1) || (not $ hasBlocks bl2) then return $ game { gameStat = 1 }  else
             if dropped then return $ game { gameStat = (-1) } else do
@@ -163,7 +155,24 @@ update seconds game = do
 -- | Responde aos eventos de teclas.
 handleKeys :: Event -> GameStatus -> IO (GameStatus)
 -- Tecla 'r' retorna ao estado inicial.
-handleKeys (EventKey (Char 'r') Down _ _) game = return initialState
+handleKeys (EventKey (Char 'r') Down _ _) game = do
+    atomically $ do
+        writeTVar (blocks game) (map genBlock1 [0..39])
+        writeTVar (blocks2 game) (map genBlock2 [0..39])
+        return ()
+    return ( game 
+        { ballLoc   = (-halfWidth / 2, -100)
+        , ballVel   = (50, -200)
+        , ballLoc2  = (halfWidth /2, -100)
+        , ballVel2  = (50, -200)
+        , playerLoc = -halfWidth / 2
+        , playerVel = 0
+        , playerLoc2 = halfWidth / 2
+        , playerVel2 = 0
+        , playerAcc = 200
+        , isPaused  = True
+        , gameStat  = 0
+        } )
 -- Tecla 'p' pausa e despausa o jogo.
 handleKeys (EventKey (Char 'p') Down _ _) game = return $ invPause game
 -- Tecla 'a' move para a esquerda.

@@ -16,10 +16,8 @@ fps :: Int
 fps = 60
 
 -- | 
-produtorDePowerUp :: GameStatus -> IO ()
-produtorDePowerUp game = do
-    b1 <- blocks game
-    b2 <- blocks2 game
+produtorDePowerUp :: TVar Blocks -> TVar Blocks -> IO ()
+produtorDePowerUp b1 b2 = do
     atomically $ do
         bl1 <- readTVar b1
         bl2 <- readTVar b2
@@ -32,14 +30,15 @@ produtorDePowerUp game = do
             writeTVar b2 ((bl2' {typePower = FastBall}) : tail bl2)
             else return()
     threadDelay 1000000
-    produtorDePowerUp game
+    produtorDePowerUp b1 b2
         
 
 -- | Criação da janela.
 main :: IO ()
 main = do 
-    
+    bl1 <- atomically $ newTVar (map genBlock1 [0..39])
+    bl2 <- atomically $ newTVar (map genBlock2 [0..39])
 
-    let iState = initialState
-    forkIO $ produtorDePowerUp iState
+    let iState = initialState bl1 bl2
+    forkIO $ produtorDePowerUp bl1 bl2
     playIO window background fps iState render handleKeys update
