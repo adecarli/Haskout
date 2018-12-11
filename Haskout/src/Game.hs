@@ -40,8 +40,8 @@ initialState = Game
     , playerVel2 = 0
     , playerAcc = 200
     , isPaused  = True
-    , blocks    = map genBlock1 [0..59]
-    , blocks2   = map genBlock2 [0..59]
+    , blocks    = map genBlock1 [0..49]
+    , blocks2   = map genBlock2 [0..49]
     , gameStat  = 0
     }
 

@@ -67,23 +67,6 @@ paddleBounce seconds bp@(x,y) bv@(vx, vy) pp pv =
     where
         newVx = -250 + 500* (x - (pp - halfPlayerWidth))/playerWidth
 
--- | Detecta colisão da bola com um bloco, alterando sua velocidade.
--- blockCollision :: Float -> Position -> Position -> BlockInfo -> Bool
--- blockCollision seconds (x, y) (vx, vy) (Block (xb, yb) _)
---     | hitCornerH xb && overlapY yb || 
---     | hitCornerV yb && overlapX xb = ( vx', -vy')
---     | hitSide    xb && overlapY yb = (-vx',  vy')
---     | hitTop     yb && overlapX xb = ( vx', -vy')
---     | otherwise                    = ( vx',  vy')
---     where 
---         itCornerH xb = inCorner xb xballRange (0.8*bHalfWidth, bHalfWidth)
---         hitCornerV yb = inCorner yb yballRange (-bHalfHeight, -0.8*bHalfHeight)
---         hitSide    xb = inCorner xb xballRange (0.5*bHalfWidth, bHalfWidth)
---         hitTop     yb = inCorner yb yballRange (-bHalfHeight, -0.5*bHalfHeight)
---         overlapY   yb = overlap yballRange $ range yb bHalfHeight
---         overlapX   xb = overlap xballRange $ range xb bHalfWidth
---         xballRange    = range (xball + vx*seconds) ballSize
---         yballRange    = range (yball + vy*seconds) (-ballSize)
 
 -- | Altera a velocidade da bola ao colidir com um dos blocos.
 blockCollision :: Float -> Position -> Position -> Blocks -> Position
@@ -104,21 +87,6 @@ blockCollision seconds v@(vx,vy) bp@(xball, yball) (b:bs)
         overlapX   xb = overlap xballRange $ range xb bHalfWidth
         xballRange    = range (xball) ballSize
         yballRange    = range (yball) (-ballSize)
-    -- foldl changeVel v bs 
-    -- where
-    --     changeVel (vx', vy') (Block (xb, yb) c) | hitCornerH xb && overlapY yb = (-vx',  vy')
-    --                                             | hitCornerV yb && overlapX xb = ( vx', -vy')
-    --                                             | hitSide    xb && overlapY yb = (-vx',  vy')
-    --                                             | hitTop     yb && overlapX xb = ( vx', -vy')
-    --                                             | otherwise                    = ( vx',  vy')
-    --     hitCornerH xb = inCorner xb xballRange (0.8*bHalfWidth, bHalfWidth)
-    --     hitCornerV yb = inCorner yb yballRange (-bHalfHeight, -0.8*bHalfHeight)
-    --     hitSide    xb = inCorner xb xballRange (0.5*bHalfWidth, bHalfWidth)
-    --     hitTop     yb = inCorner yb yballRange (-bHalfHeight, -0.5*bHalfHeight)
-    --     overlapY   yb = overlap yballRange $ range yb bHalfHeight
-    --     overlapX   xb = overlap xballRange $ range xb bHalfWidth
-    --     xballRange    = range (xball) ballSize
-    --     yballRange    = range (yball) (-ballSize)
 
 
 -- | Remove blocos atingidos.

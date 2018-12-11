@@ -19,10 +19,13 @@ bHalfWidth = (1 + fst blockSize) / 2
 bHalfHeight :: Float
 bHalfHeight = (1 + snd blockSize) / 2
 
+data PowerUp = None | BigBar | SmallBar | FastBall | SlowBall deriving Eq
+
 -- | Informação dos blocos.
 data BlockInfo = Block
     { blockPos :: Position  -- ^ (x, y) coordenada do bloco.
-    , blockCol :: Color     -- ^ cor do bloco.
+    -- , blockCol :: Color     -- ^ cor do bloco.
+    , typePower :: PowerUp      -- ^ 
     }
 
 -- | Lista dos blocos atuais.
@@ -36,12 +39,20 @@ hasBlocks blocks = not $ length blocks == 0
 drawBlocks :: Blocks -> Picture
 drawBlocks bs = pictures $ [drawBlock x | x <- bs]
     where
-        drawBlock (Block (x, y) col) = translate x y $ color col $ rectangleSolid w h
+        drawBlock (Block (x, y) power) = translate x y $ color col $ rectangleSolid w h
+            where
+                col | power == None = orange
+                    | power == BigBar = green
+                    | power == SmallBar = red
+                    | power == FastBall = blue
+                    | power == SlowBall = yellow
         (w, h)                       = blockSize
+        
 
 -- | Gera os blocos.
 genBlock :: Int -> Position -> BlockInfo
-genBlock n (px, py) = Block { blockPos = pos, blockCol = orange }
+genBlock n (px, py) | n == 25 = Block {blockPos = pos, typePower = BigBar}
+                    | otherwise = Block { blockPos = pos, typePower = None }
     where
         pos = (bx, by)
         bx = px + bHalfWidth + 6 + fromIntegral x * (fst blockSize + 1)
